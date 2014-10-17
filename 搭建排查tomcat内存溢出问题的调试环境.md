@@ -117,7 +117,9 @@ JProfiler
 
 然后我们重启tomcat，对了，重启之前最好改一下分配给tomcat的内存上限，改小一些，有助于问题快速的暴露：
 
-	-Xms20m -Xmx20m
+	-Xms20m -Xmx20m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/www/java-OOM/
+
+后面的两个`-XX`参数是用来让jvm在出现OOM后自动保存内存堆栈快照信息用的，方便我们排查问题。
 
 重启吧，然后为了加速内存溢出，我们可以使用apache自带的`ab`做压力测试：
 
