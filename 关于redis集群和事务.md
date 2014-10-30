@@ -8,6 +8,8 @@
 
 在这里，我主要是贴一下关于[twemproxy对redis命令的支持情况](https://github.com/twitter/twemproxy/blob/master/notes/redis.md)的细节，相信有了这个数据，我们在设计使用redis时可以起到指导的作用。
 
+另外，twemproxy中不少命令的支持与否需要依赖[Hash Tags](https://github.com/twitter/twemproxy/blob/master/notes/recommendation.md#hash-tags)，简单粗暴解释的话，其实就是说twemproxy支持指定key中的某一部分用来做hash散列，这样就有助于把相关的一些数据分布在同一台服务器上，从而避免一些指令导致数据在多服务器之间不必要的迁移而影响了性能！
+
 从这个表格中我们注意到，twemproxy不支持redis的事务操作，原因其实在上面给出的文章中已经解释了~这里我主要想来聊一下redis的事务到底是什么？记忆中看过一篇文章，模糊记得redis的事务和传统关系型数据库的事务是存在差异的。
 
 先看一下这篇[文章](http://redisbook.readthedocs.org/en/latest/feature/transaction.html)，写的已经非常之详细了，不是么？我们必须搞清楚： **原子性、一致性和回滚功能**。这可能显得有一些过于纠结定义了，不过查了一下GG才发现，其实关于原子性和一致性的理解却是有很多种说法~~而我更偏向于下面这种解释：
