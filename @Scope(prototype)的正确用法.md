@@ -4,10 +4,10 @@
 
 现在的思路是这样的：
 
-1. 拦截器（或过滤器）中获取请求中指定的`sessionId`参数，可以是来自于表单提交的参数，也可以是请求头中自定义的参数；
-2. 通过这个`sessionId`去`redis`中取得对应的登录用户的信息：`sessionUser`对象；
-3. 实现HttpSession接口，自定义一个类`MySession`，定义在`Spring`的配置中，`id`为`httpSession`，作用域设置为`request`，这样可以使原先写的代码尽可能适配；
-4. 在每次`MySession`对象注销时回写入`redis`，由于要持久化对象到`redis`中，所以要选择一个高效能的序列化与反序列化实现。
+1. 在Servlet过滤器中把`ServletRequest`对象替换为自己的`Wrapper`实例，在其中实现`getSession()`方法，返回我们自定义的`HttpSession`对象
+2. 我们实现一个继承了`HttpSession`接口的自定义会话类，用于第一步的返回，该自定义会话类提供接受`sessionId`参数获取会话数据的方法
+3. 通过拿在`request`对象中获取的`sessionId`去`redis`中取得对应的登录用户的信息：`sessionUser`对象；
+4. 在每次请求处理完后（过滤器最后一行代码）让自定义会话类把会话数据回写入`redis`，由于要持久化对象到`redis`中，所以要选择一个高效能的序列化与反序列化实现。
 
 当然也可以再进一步优化，例如说最后一步，检查如果`MySession`对象没有被修改则不需要回写等。
 
