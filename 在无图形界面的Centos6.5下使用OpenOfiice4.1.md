@@ -21,7 +21,7 @@
 
 安装完后，执行：
 
-	Xvfb :1 -screen 0 1024x768x256 &
+	Xvfb :1 -screen 0 800x600x24 &
 	soffice -headless -accept="socket,host=127.0.0.1,port=8100;urp;" -nofirstartwizard -display :1 &
 
 执行完上面第一条命令后，系统提示了一个报错：
@@ -32,7 +32,7 @@
 	> Internal error:   Could not resolve keysym XF86AudioMicMute
 	Errors from xkbcomp are not fatal to the X server
 
-不过提示的好像不是致命错误，所以暂时没有理会它。
+不过提示的好像不是致命错误，所以暂时没有理会它。需要注意的是，虽然OpenOffice提示需要的是**1027x768x256**的图形分辨率，但是由于我们的服务器配置问题达不到这个标准，但我实际测试填写**800x600x24**也是完全没问题的！
 
 其实上面第二条命令也可以忽略，如果你用的是`jodconverter3.0+`的话！
 
