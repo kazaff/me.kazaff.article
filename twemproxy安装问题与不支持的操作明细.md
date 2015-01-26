@@ -27,7 +27,7 @@ redis已经成为我们项目中不可或缺的一部分，充当了各种业务
 
 查了一下，原因是由于我们手动安装的autoconf，导致其他两个必要的依赖包缺失，**依照顺序**安装下面两个包：
 
-1. [automake-1.12.tar.gz](ftp://ftp.gnu.org/gnu/automake/automake-1.12.tar.xz)
+1. automake-1.12.tar.gz： ftp://ftp.gnu.org/gnu/automake/automake-1.12.tar.xz
 2. [libtool-2.2.4.tar.gz](http://ftp.gnu.org/gnu/libtool/libtool-2.2.4.tar.gz)
 
 一切就绪了，可以顺利安装了。
