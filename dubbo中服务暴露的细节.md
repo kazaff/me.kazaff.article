@@ -270,4 +270,6 @@ dubbo的[Invoker](http://alibaba.github.io/dubbo-doc-static/RPC+Detail-zh.htm)�
 
 到目前为止，我们可以知道，每个serviceConfig实例会根据配置中定义的注册中心和协议最终得到多个exporter实例。当有调用过来时，dubbo会通过请求消息中的相关信息来确定调用的exporter，并最终调用其封装的invoker的invoke方法完成业务逻辑。
 
+更多的细节，推荐看一下之前发的这篇文章：[dubbo协议下的单一长连接与多线程并发如何协同工作](http://blog.kazaff.me/2014/09/20/dubbo%E5%8D%8F%E8%AE%AE%E4%B8%8B%E7%9A%84%E5%8D%95%E4%B8%80%E9%95%BF%E8%BF%9E%E6%8E%A5%E4%B8%8E%E5%A4%9A%E7%BA%BF%E7%A8%8B%E5%B9%B6%E5%8F%91%E5%A6%82%E4%BD%95%E5%8D%8F%E5%90%8C%E5%B7%A5%E4%BD%9C/)
+
 不打算继续挖下去了，因为打算另起一篇专门聊dubbo中使用netty的文章。那就先瞎扯到这里吧，希望大牛能对上面的错误之处能够无情的给予打击。
