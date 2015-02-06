@@ -101,7 +101,7 @@ register
 
 	public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
         //export invoker
-        final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker); //完成真正的服务暴露逻辑
+        final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker); //完成真正的服务暴露逻辑：默认以netty创建server服务来处理远程调用，打算回头专门写一下dubbo使用netty的细节
 
         //registry provider
         final Registry registry = getRegistry(originInvoker);  //根据url参数获取对应的注册中心服务实例，这里就是ZookeeperRegistry
@@ -142,8 +142,38 @@ register
         };
 	}
 
-dubbo默认会使用zkclient与zookeeper服务进行通信，关于服务的注册就说到这里吧。
 
+到这里，主线轮廓已经勾勒出来了，我们接下来看一下dubbo和zookeeper之间在服务注册阶段的通信细节，要从上面这个方法中的下面三行下手：
+
+	//registry provider
+    final Registry registry = getRegistry(originInvoker);  //根据url参数获取对应的注册中心服务实例，这里就是ZookeeperRegistry
+
+    final URL registedProviderUrl = getRegistedProviderUrl(originInvoker);
+    registry.register(registedProviderUrl); //向注册中心注册当前暴露的服务的URL
+
+正如注释标明的，第一行会获取invoker中url指定的注册中心实例，我们的情况就是拿到`zookeeperRegistry`。第二行其实就是过滤掉url中的注册中心相关参数，以及过滤器，监控中心等参数，按照我们上面的例子，`registedProviderUrl`大概应该如下：
+
+	dubbo://192.168.153.1:20880/com.alibaba.dubbo.demo.bid.BidService?anyhost=true&application=demo-provider&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.bid.BidService&methods=throwNPE,bid&optimizer=com.alibaba.dubbo.demo.SerializationOptimizerImpl&organization=dubbox&owner=programmer&pid=3872&serialization=kryo&side=provider&timestamp=1422241023451
+
+我们主要看第三行，真正完成向zookeeper中注册的工作就是靠register方法完成的，先来看一下zookeeperRegistry的继承关系：
+
+![](http://pic.yupoo.com/kazaff/Ep8RFf0S/7imCY.png)
+
+真正声明register方法的是zookeeperRegistry的父类：FailbackRegistry，从名字就能直观的看出它的作用，主要就是负责注册中心失效重试逻辑的。我们不打算在这里展开说这个话题。好吧，我们继续看zookeeperRegistry的doRegister方法（FailbackRegistry的register方法会调用zookeeperRegistry的doRegister的方法）：
+
+	protected void doRegister(URL url) {
+        try {
+        	zkClient.create(toUrlPath(url), url.getParameter(Constants.DYNAMIC_KEY, true));     //参见：http://alibaba.github.io/dubbo-doc-static/Zookeeper+Registry-zh.htm
+        } catch (Throwable e) {
+            throw new RpcException("Failed to register " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
+        }
+    }
+
+到这里就已经可以告一段落了，需要叮嘱的是`toUrlPath`方法，它的作用就是把url格式化成最终存储在zookeeper中的数据格式，尤其要注意`category`参数，它表示注册类型，如下图：
+
+![](http://pic.yupoo.com/kazaff/Ep8ZmnoV/RmZZL.jpg)
+
+在我们的例子中，最终这次注册就会在对应serverInterface下的providers下创建一个url节点。
 
 
 
@@ -156,9 +186,9 @@ subscribe
 	public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
         //处理注册中心的协议，用url中registry参数的值作为真实的注册中心协议
         url = url.setProtocol(url.getParameter(Constants.REGISTRY_KEY, Constants.DEFAULT_REGISTRY)).removeParameter(Constants.REGISTRY_KEY);
-        Registry registry = registryFactory.getRegistry(url);   //拿到真正的注册中心实例，我们的例子中就是zookeeper
+        Registry registry = registryFactory.getRegistry(url);   //拿到真正的注册中心实例，我们的例子中就是zookeeperRegistry
 
-        if (RegistryService.class.equals(type)) {   //todo 不太理解，貌似是注册注册中心服务本身的暴露
+        if (RegistryService.class.equals(type)) {   //todo 不太理解，貌似是注册中心服务本身的暴露
         	return proxyFactory.getInvoker((T) registry, type, url);
         }
 
@@ -176,15 +206,54 @@ subscribe
         return doRefer(cluster, registry, type, url);
     }
 
-真正完成订阅是在`doRefer`方法中，由于代码非常直观（不包含集群逻辑）就不在赋值粘贴了。
+真正完成订阅是在`doRefer`方法中：
 
-从dubbo源码中可以看出，架构师和开发人员对面向对象和设计模式的理解非常的深刻，合理的运用继承和组合，打造了非常灵活的一套系统，保证概念统一的前提下展现了非常强大的多态性，感叹！
+	 private <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url) {
+        RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);   //这个directory把同一个serviceInterface对应的多个invoker管理起来提供概念上的化多为单一，供路由、均衡算法等使用
+        directory.setRegistry(registry);
+        directory.setProtocol(protocol);
+        URL subscribeUrl = new URL(Constants.CONSUMER_PROTOCOL, NetUtils.getLocalHost(), 0, type.getName(), directory.getUrl().getParameters());
+
+        //注册自己
+        if (! Constants.ANY_VALUE.equals(url.getServiceInterface())
+                && url.getParameter(Constants.REGISTER_KEY, true)) {
+            registry.register(subscribeUrl.addParameters(Constants.CATEGORY_KEY, Constants.CONSUMERS_CATEGORY,
+                    Constants.CHECK_KEY, String.valueOf(false)));
+        }
+
+        //订阅目标服务提供方
+        directory.subscribe(subscribeUrl.addParameter(Constants.CATEGORY_KEY, 
+                Constants.PROVIDERS_CATEGORY 
+                + "," + Constants.CONFIGURATORS_CATEGORY 
+                + "," + Constants.ROUTERS_CATEGORY));
+
+        return cluster.join(directory); //合并所有相同invoker
+    }
+
+
+可见代码和上面给的那个图很吻合，服务消费方不仅会订阅相关的服务，也会注册自身供其他层使用（服务治理）。特别要注意的是订阅时，同时订阅了三个分类类型：**providers，routers，configurators**。目前我们不打算说另外两种类型的意义（因为我也不清楚），后面分析道路由和集群的时候再来扯淡。
+
+继续深挖dubbo中服务消费方订阅服务的细节，上面方法中最终把订阅细节委托给`RegistryDirectory.subscribe`方法，注意，这个方法接受的参数，此时的url已经把`category`设置为`providers，routers，configurators`：
+
+	public void subscribe(URL url) {
+        setConsumerUrl(url);
+        registry.subscribe(url, this);
+    }
+
+这里`registry`就是zookeeperRegistry，这在`doRefer`方法可以看到明确的注入。然后和注册服务时一样，订阅会先由`FailbackRegistry`完成失效重试的处理，最终会交给`zookeeperRegistry.doSubscribe`方法。zookeeperRegistry实例拥有ZookeeperClient类型引用，该类型对象封装了和zookeeper通信的逻辑（默认是使用zkclient客户端），这里需要注意的一点，小爷我就被这里的一个数据结构卡住了一整天：
+
+	private final ConcurrentMap<URL, ConcurrentMap<NotifyListener, ChildListener>> zkListeners = new ConcurrentHashMap<URL, ConcurrentMap<NotifyListener, ChildListener>>();
+
+一开始很不理解，为何要在url和NotifyListener之间再搞一个ChildListener接口出来，后来反复查看zkclient的文档说明和dubbo注册中心的设计，才悟出来点门道。这个**ChildListener接口用于把zkclient的事件（IZkChildListener）转换到registry事件（NotifyListener）**。这么做的深意不是特别的理解，可能是因为我并没有太多zookeeper的使用经验导致的，这里的做法**可以更好的把zkclient的api和dubbo真身的注册中心逻辑分离开**，毕竟dubbo除了zkclient以外还可以选择curator。从dubbo源码中可以看出，架构师和开发人员对面向对象和设计模式的理解非常的深刻，合理的运用继承和组合，打造了非常灵活的一套系统，保证概念统一的前提下展现了非常强大的多态性，感叹！
+
+这样走一圈下来，关于服务订阅的大致流程就描述清楚了，部分问题需要留到未来再解决了。
+
 
 
 notify
 ---
 
-最后看一下注册推送细节，在订阅时你会注意到，订阅真正操作的是用`RegistryDirectory`类型封装过的对象，这个类型实现了一个接口`NotifyListener`，该接口用于描述支持推送通知逻辑：
+最后看一下注册推送细节，在订阅时你会注意到，订阅真正操作的是用`RegistryDirectory`类型封装过的对象，这个类型实现了一个接口`NotifyListener`（前面我们已经提到这个接口了），该接口用于描述支持推送通知逻辑：
 	
 	public interface NotifyListener {
 	
@@ -203,8 +272,111 @@ notify
 	    void notify(List<URL> urls);
 	}
 
-更多细节，将在分析dubbo的Router、Filter和cluster时再细说，因为这几个部分在概念上比较靠近。
+前面提到了ChildListener接口，dubbo靠它把zkclient的事件转换成自己的事件类型，如果从代码上来看确实有点绕，事件的流程我手绘了一下：
+
+[![](http://pic.yupoo.com/kazaff/Epc4RElK/medish.jpg)](http://pic.yupoo.com/kazaff/Epc4RElK/TJLi1.png)
+
+我们主要看一下RegistryDirectory的notify方法：
+
+	public synchronized void notify(List<URL> urls) {
+        List<URL> invokerUrls = new ArrayList<URL>();
+        List<URL> routerUrls = new ArrayList<URL>();
+        List<URL> configuratorUrls = new ArrayList<URL>();
+        for (URL url : urls) {
+            String protocol = url.getProtocol();
+            //允许不同类型的数据分开通知，比如：providers, consumers, routers, overrides，允许只通知其中一种类型，但该类型的数据必须是全量的，不是增量的。
+            String category = url.getParameter(Constants.CATEGORY_KEY, Constants.DEFAULT_CATEGORY);
+            if (Constants.ROUTERS_CATEGORY.equals(category) 
+                    || Constants.ROUTE_PROTOCOL.equals(protocol)) {
+                routerUrls.add(url);
+            } else if (Constants.CONFIGURATORS_CATEGORY.equals(category) 
+                    || Constants.OVERRIDE_PROTOCOL.equals(protocol)) {
+                configuratorUrls.add(url);
+            } else if (Constants.PROVIDERS_CATEGORY.equals(category)) {
+                invokerUrls.add(url);
+            } else {
+                logger.warn("Unsupported category " + category + " in notified url: " + url + " from registry " + getUrl().getAddress() + " to consumer " + NetUtils.getLocalHost());
+            }
+        }
+        // configurators 更新缓存的服务提供方配置规则
+        if (configuratorUrls != null && configuratorUrls.size() >0 ){
+            this.configurators = toConfigurators(configuratorUrls);
+        }
+        // routers  更新缓存的路由配置规则
+        if (routerUrls != null && routerUrls.size() >0 ){
+            List<Router> routers = toRouters(routerUrls);
+            if(routers != null){ // null - do nothing
+                setRouters(routers);
+            }
+        }
+
+        // 合并override参数
+        List<Configurator> localConfigurators = this.configurators; // local reference
+        this.overrideDirectoryUrl = directoryUrl;
+        if (localConfigurators != null && localConfigurators.size() > 0) {
+            for (Configurator configurator : localConfigurators) {
+                this.overrideDirectoryUrl = configurator.configure(overrideDirectoryUrl);
+            }
+        }
+
+        // providers
+        refreshInvoker(invokerUrls);
+    }
+
+dubbo提供了强大的服务治理功能，所以这里在每次消费方接受到注册中心的通知后，大概会做下面这些事儿：
+
+- [更新服务提供方配置规则](http://alibaba.github.io/dubbo-doc-static/Configurator+Rule-zh.htm)
+- [更新路由规则](http://alibaba.github.io/dubbo-doc-static/Router+Rule-zh.htm)
+- 重建invoker实例
+
+前两件事儿我们放在分析路由，过滤器，集群的时候再讲，我们这里主要看dubbo如何“重建invoker实例”，也就是最后一行代码调用的方法`refreshInvoker`：
+
+	private void refreshInvoker(List<URL> invokerUrls){
+        if (invokerUrls != null && invokerUrls.size() == 1 && invokerUrls.get(0) != null
+                && Constants.EMPTY_PROTOCOL.equals(invokerUrls.get(0).getProtocol())) { //如果传入的参数只包含一个empty://协议的url，表明禁用当前服务
+            this.forbidden = true; // 禁止访问
+            this.methodInvokerMap = null; // 置空列表
+            destroyAllInvokers(); // 关闭所有Invoker
+        } else {
+            this.forbidden = false; // 允许访问
+            Map<String, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
+
+            if (invokerUrls.size() == 0 && this.cachedInvokerUrls != null){ //如果传入的invokerUrl列表是空，则表示只是下发的override规则或route规则，需要重新交叉对比，决定是否需要重新引用
+                invokerUrls.addAll(this.cachedInvokerUrls);
+            } else {
+                this.cachedInvokerUrls = new HashSet<URL>();
+                this.cachedInvokerUrls.addAll(invokerUrls);//缓存invokerUrls列表，便于交叉对比
+            }
+
+            if (invokerUrls.size() ==0 ){
+            	return;
+            }
+
+            Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls) ;// 将URL列表转成Invoker列表
+            Map<String, List<Invoker<T>>> newMethodInvokerMap = toMethodInvokers(newUrlInvokerMap); // 换方法名映射Invoker列表
+
+            // state change
+            //如果计算错误，则不进行处理.
+            if (newUrlInvokerMap == null || newUrlInvokerMap.size() == 0 ){
+                logger.error(new IllegalStateException("urls to invokers error .invokerUrls.size :"+invokerUrls.size() + ", invoker.size :0. urls :"+invokerUrls.toString()));
+                return ;
+            }
+
+            this.methodInvokerMap = multiGroup ? toMergeMethodInvokerMap(newMethodInvokerMap) : newMethodInvokerMap;
+            this.urlInvokerMap = newUrlInvokerMap;
+
+            try{
+                destroyUnusedInvokers(oldUrlInvokerMap,newUrlInvokerMap); // 关闭未使用的Invoker
+            }catch (Exception e) {
+                logger.warn("destroyUnusedInvokers error. ", e);
+            }
+        }
+    }
 
 
+好吧，到这里我们已经完成了服务通知的业务逻辑，有兴趣的童鞋可以深究一下`toInvokers`方法，它又会走一遍**url->invoker**的逻辑（服务引用）。
 
-好了， 先到这里，再见。
+
+那么，就先到这里吧，再会~
+
+
