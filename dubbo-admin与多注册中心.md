@@ -11,14 +11,12 @@ dubbo-admin是否支持同时关联多个注册中心统一管理不同注册中
 
 当然，也可以改造一下现有的dubbo-admin逻辑，只不过以现在我的道行还做不到啊~坐等高手！
 
-最后还要叮嘱的是，如果你的注册中心是以集群方式部署的，那么你在你的服务配置注册中心时**一定要以官方提供的集群配置写法来部署，否则会提示zkClient连接超时**：
+最后还要叮嘱的是，如果你的注册中心和服务之间的网络质量比较差，建议你配置一个较长的timeout时间，否则会出现：
 
 	...
 	nested exception is org.I0Itec.zkclient.exception.ZkTimeoutException: Unable to connect to zookeeper server within timeout: 5000
 	...
 
-期初我还偷懒只写了一个zookeeper leader的地址，结果死活连不上（dubbo-admin也连不上！），一直以为是防火墙的问题！后来老老实实的按照官方推荐的写法：
+这么写：
 
-	 <dubbo:registry protocol="zookeeper" address="192.168.76.138:2182,192.168.76.138:2181,192.168.76.138:2183"/>
-
-一切就正常了！希望大家引以为戒~~
+	 <dubbo:registry protocol="zookeeper" address="192.168.76.138:2182,192.168.76.138:2181,192.168.76.138:2183" timeout="100000"/>
