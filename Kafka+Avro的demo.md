@@ -116,6 +116,112 @@
 
 **PS：这只是个测试的例子，存在各种问题，不建议直接使用在项目中。**
 
+为了方便大家直接测试，我把pom.xml也贴出来：
+
+	<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	    <modelVersion>4.0.0</modelVersion>
+	
+	    <groupId>me.kazaff.mq</groupId>
+	    <artifactId>kafkaProducer</artifactId>
+	    <version>0.0.1</version>
+	    <packaging>jar</packaging>
+	    <name>kafkaProducer</name>
+	    <description>The Producer of message, use Avro to encode data, and send to the kafka.</description>
+	
+	    <dependencies>
+	        <dependency>
+	            <groupId>org.apache.kafka</groupId>
+	            <artifactId>kafka_2.11</artifactId>
+	            <version>0.8.2.1</version>
+	        </dependency>
+	
+	        <dependency>
+	            <groupId>org.apache.avro</groupId>
+	            <artifactId>avro</artifactId>
+	            <version>1.7.6-cdh5.2.5</version>
+	        </dependency>
+	
+	    </dependencies>
+	    <build>
+	        <plugins>
+	            <plugin>
+	                <groupId>org.apache.avro</groupId>
+	                <artifactId>avro-maven-plugin</artifactId>
+	                <version>1.7.6</version>
+	                <executions>
+	                    <execution>
+	                        <phase>generate-sources</phase>
+	                        <goals>
+	                            <goal>schema</goal>
+	                        </goals>
+	                        <configuration>
+	                            <sourceDirectory>${project.basedir}/src/avro/</sourceDirectory>
+	                            <outputDirectory>${project.basedir}/src/</outputDirectory>
+	                        </configuration>
+	                    </execution>
+	                </executions>
+	            </plugin>
+	            <plugin>
+	                <groupId>org.apache.maven.plugins</groupId>
+	                <artifactId>maven-compiler-plugin</artifactId>
+	                <configuration>
+	                    <source>1.7</source>
+	                    <target>1.7</target>
+	                </configuration>
+	            </plugin>
+	        </plugins>
+	    </build>
+	
+	    <repositories>
+	        <repository>
+	            <id>cloudera-repo-releases</id>
+	            <url>https://repository.cloudera.com/artifactory/repo/</url>
+	        </repository>
+	    </repositories>
+	</project>
+
+下面是Avro使用的Schema：
+
+	{
+	    "namespace": "me.kazaff.mq.avro",
+	    "type": "record",
+	    "name": "Message",
+	    "fields": [
+	        {
+	            "name": "date",
+	            "type": "string"
+	        },
+	        {
+	            "name": "url",
+	            "type": "string"
+	        },
+	        {
+	            "name": "ip",
+	            "type": "string"
+	        }
+	    ]
+	}
+
+代码中使用的`MyPartitioner`其实很sb：
+
+	package me.kazaff.mq;
+
+	import kafka.producer.Partitioner;
+	import kafka.utils.VerifiableProperties;
+	
+	/**
+	 * Created by kazaff on 2015/4/21.
+	 */
+	public class MyPartitioner implements Partitioner {
+	    public MyPartitioner(VerifiableProperties props){}
+	
+	    public int partition(Object key, int numPartitions){
+	        return 0;
+	    }
+	}
+
+需要注意的是，我是先使用Maven根据配置的plugin，把声明的Schema先处理生成对应的Class文件，然后再进行运行测试的~
 
 
 ### 问题
