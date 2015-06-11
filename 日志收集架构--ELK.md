@@ -264,6 +264,12 @@ Log4j-->Logstash
 	}
 	......
 
+
+高可用
+---
+
+有经验的童鞋不难看出，上图中存在单点故障，但，其实是可以通过把对应单点集群化部署来增加这套架构的可用性和处理性能，具体可参考[ElasticSearch+LogStash+Kibana+Redis日志服务的高可用方案](http://nkcoder.github.io/blog/20141106/elkr-log-platform-deploy-ha/)。
+
 总结
 ---
 
