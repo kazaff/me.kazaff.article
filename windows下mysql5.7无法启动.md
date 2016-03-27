@@ -11,18 +11,19 @@ mysql安装的时候我也没有把它加到服务中，这下好了，我tm无�
 
 网上查了一下，win下，可以执行下面的命令（后面所有命令都建议在管理员权限下做）：
 
-  mysqld  --initialize
+	mysqld  --initialize
 
 前提是，你得先有一个my.ini，并配置好basedir，basedir指向的文件夹也要有对应文件夹啊~
 
 这一步做完，mysql会初始化创建它要使用的data数据！（这不是废话么！）
 
 然后将mysql加入到win的系统服务中：
-  mysqld --install MySQL 
+
+	mysqld --install MySQL 
   
 或者先卸载服务:
 
-  mysqld --remove
+	mysqld --remove
 
 完事儿了你基本上就已经可以启动你的mysql服务了！
 然后你还不能高兴过头！因为，密码也丢了！！！
@@ -30,7 +31,7 @@ mysql安装的时候我也没有把它加到服务中，这下好了，我tm无�
 网上很多资料讲的找回密码方案在mysql5.7下似乎都不管用了！
 我只能，在我的my.ini文件中加入下面这个参数：
 
-  skip-grant-tables
+	skip-grant-tables
 
 除此之外，难倒我只能选择重新安装mysql了么？要知道卸载mysql也不是一件容易事儿啊~
 难倒我只能重装操作系统了吗？
