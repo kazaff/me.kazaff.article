@@ -6,7 +6,7 @@
 
 然后就是推荐一个插件：
 
-  Atom-beautify
+> Atom-beautify
 
 这样你就可以不再被“别人”写的垃圾代码干扰了，一键“ctrl+alt+b”格式化代码排版，真刺激！
 
