@@ -91,6 +91,22 @@ nginx下就很简单了，按照[这里](http://www.ccvita.com/336.html)教的�
 遇过你碰见这个问题，请参考[这里](http://blog.wpjam.com/m/maintenance-sucks-problem/)。
 
 
+### 多国语言
+
+由于我司直接购买的商用theme，其自带了ACF5PRO，那我们要如何做多语言功能呢，现成的插件组合：
+
+- [qTranslate-X](https://qtranslatexteam.wordpress.com/about/) 免费
+- ACF qTranslate 免费
+
+这样你的网站就可以摇身一变成为多语言站点了。其中需要注意的是，custom filed的多语言，acf qTranslate插件只提供了下面几种类型：
+
+- text
+- textarea
+- WYSIWYG
+
+这就需要你取舍了，像我原本还使用了ACF的true/false类型，也只能想办法用text表示了。
+
+
 ### 手把手
 
 不是我夸，老外就是屌，早有牛人出了系列教程，教你如何不写一行代码完成wp建站：[教程](http://tyler.com/)
